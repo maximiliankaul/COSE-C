@@ -842,12 +842,18 @@ EC_KEY * ECKey_From(const cn_cbor * pKey, int * cbGroup, cose_errback * perr)
 		pbn = BN_bin2bn(p->v.bytes, (int) p->length, NULL);
 		CHECK_CONDITION(pbn != NULL, COSE_ERR_CRYPTO_FAIL);
 		CHECK_CONDITION(EC_KEY_set_private_key(pNewKey, pbn) == 1, COSE_ERR_CRYPTO_FAIL);
+		BN_clear_free(pbn);
 	}
 	
+	EC_GROUP_clear_free(ecgroup);
+	EC_POINT_clear_free(pPoint);
+
 	return pNewKey;
 
 errorReturn:
 	if (pNewKey != NULL) EC_KEY_free(pNewKey);
+	EC_GROUP_clear_free(ecgroup);
+	EC_POINT_clear_free(pPoint);
 	return NULL;
 }
 
@@ -1009,6 +1015,7 @@ bool ECDSA_Sign(COSE * pSigner, int index, const cn_cbor * pKey, int cbitDigest,
 	pbSig = NULL;
 
 	if (eckey != NULL) EC_KEY_free(eckey);
+	if( psig != NULL) ECDSA_SIG_free(psig);
 
 	return true;
 }
@@ -1032,7 +1039,7 @@ bool ECDSA_Verify(COSE * pSigner, int index, const cn_cbor * pKey, int cbitDiges
 	eckey = ECKey_From(pKey, &cbR, perr);
 	if (eckey == NULL) {
 	errorReturn:
-		ECDSA_SIG_free(sig);
+		if (sig != NULL) ECDSA_SIG_free(sig);
 		if (p != NULL) CN_CBOR_FREE(p, context);
 		if (eckey != NULL) EC_KEY_free(eckey);
 		return false;
@@ -1060,7 +1067,7 @@ bool ECDSA_Verify(COSE * pSigner, int index, const cn_cbor * pKey, int cbitDiges
 
 	CHECK_CONDITION(ECDSA_do_verify(rgbDigest, cbDigest, sig, eckey) == 1, COSE_ERR_CRYPTO_FAIL);
 
-	ECDSA_SIG_free(sig);
+	if (sig != NULL) ECDSA_SIG_free(sig);
 	if (eckey != NULL) EC_KEY_free(eckey);
 
 	return true;
